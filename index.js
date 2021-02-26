@@ -8,6 +8,8 @@ const availabilityURL = "https://bad-api-assignment.reaktor.com/v2/availability"
 
 app.use(cors())
 
+app.use(express.static("build"))
+
 app.get("/products/", (req, res) => {
     axios
     .get(`${productsURL}gloves`)
