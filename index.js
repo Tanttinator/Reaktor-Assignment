@@ -10,16 +10,18 @@ app.use(cors())
 
 app.use(express.static("build"))
 
-app.get("/products/", (req, res) => {
+app.get("/products/:category", (req, res) => {
     axios
-    .get(`${productsURL}gloves`)
-    .then(response => {
-        res.json(response.data)
-    })
+    .get(`${productsURL}${req.params.category}`)
+    .then(response => res.json(response.data))
+    .catch(error => res.json({type: "error", msg: error.response}))
 })
 
-app.get("/availability/", (req, res) => {
-    res.send("Availability")
+app.get("/availability/:manufacturer", (req, res) => {
+    axios
+        .get(`${availabilityURL}${req.params.manufacturer}`)
+        .then(response => res.json(response.data))
+        .catch(error => res.json({type: "error", msg: error.response}))
 })
 
 const PORT = process.env.PORT || 3001
