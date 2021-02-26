@@ -1,8 +1,8 @@
 import axios from "axios"
 import { useEffect, useState } from "react";
 
-const productsURL = "http://localhost:3001/products/"
-const availabilityURL = "http://localhost:3001/availability/"
+const productsURL = "/products/"
+const availabilityURL = "/availability/"
 
 function App() {
 
