@@ -1,5 +1,6 @@
 import axios from "axios"
 import { useEffect, useState } from "react";
+import Product from "./components/Product";
 
 const productsURL = "/products/"
 const availabilityURL = "/availability/"
@@ -10,28 +11,30 @@ const categories = [
   "beanies"
 ]
 
+const style = {
+  fontFamily: "Arial"
+}
+
 const App = () => {
 
   const [category, setCategory] = useState(categories[0])
-  const [items, setItems] = useState([])
+  const [products, setProducts] = useState([])
 
   useEffect(() => {
     axios
       .get(`${productsURL}${category}`)
       .then(response => {
-        setItems(response.data)
+        setProducts(response.data)
       }).catch(error => console.log(error))
   }, [category])
 
   return (
-    <div>
-      <p>Title</p>
+    <div style={style}>
+      <h1>Products</h1>
       <div>
         {categories.map(category => <button key={category} onClick={() => setCategory(category)}>{category}</button>)}
       </div>
-      <ul>
-        {items.map(item => <li key={item.name}>{item.name}</li>)}
-      </ul>
+      {products.map(product => <Product key={product.id} product={product} />)}
     </div>
   );
 }
