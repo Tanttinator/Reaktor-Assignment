@@ -1,15 +1,81 @@
 const express = require("express")
 const app = express()
 const axios = require("axios")
+//axios.defaults.headers.get["x-force-error-mode"] = "all"
 const cors = require("cors")
+const NodeCache = require("node-cache")
 
 //Store the URLs used by the app
 const productsURL = "https://bad-api-assignment.reaktor.com/v2/products/"
 const availabilityURL = "https://bad-api-assignment.reaktor.com/v2/availability/"
 
-//Cache for data on the assignment API
-var products = {}
-var manufacturers = {}
+//Caches for data on the assignment API
+const cacheOptions = { stdTTL: 300, checkperiod: 100, useClones: false, deleteOnExpire: false }
+const products = new NodeCache( cacheOptions )
+products.on("expired", (key, value) => {
+    products.set(key, value)                //Keep old value as backup until value is updated
+    console.log(`${key} has expired`)
+    updateProductData(key)
+})
+
+const availability = new NodeCache( cacheOptions )
+availability.on("expired", (key, value) => {
+    availability.set(key, value)
+    console.log(`${key} has expired`)
+    updateAvailabilityData(key)
+})
+
+//Try to retrieve data from a cache
+const getDataFromCache = async (cache, param, updateData) => {
+    const data = cache.get(param)
+
+    if(data === undefined) {
+        return updateData(param)
+    } else {
+        return data
+    }
+}
+
+//Update data of products
+const updateProductData = async (param) => {
+    const startTime = Date.now();
+    console.log(`Updating data for: ${param}...`)
+    const response = await axios.get(`${productsURL}${param}`)
+    const data = response.data
+    for(let product of data) {
+        product.availability = await getAvailability(product)
+    }
+    products.set(param, data)
+    console.log(`Data updated for ${param} in ${Date.now() - startTime}ms`)
+    return data
+}
+
+//Update data of manufacturers
+const updateAvailabilityData = async (param) => {
+    const startTime = Date.now();
+    console.log(`Updating data for: ${param}...`)
+    const response = await axios.get(`${availabilityURL}${param}`)
+    const data = response.data
+    availability.set(param, data)
+    console.log(`Data updated for ${param} in ${Date.now() - startTime}ms`)
+    return data
+}
+
+//Get the availability of a given product
+const getAvailability = async (product) => {
+    const manufacturerData = await getDataFromCache(availability, product.manufacturer, updateAvailabilityData)
+    if(manufacturerData.response !== "[]") {
+        const productData = manufacturerData.response.find(p => p.id === product.id.toUpperCase())
+        if(productData !== undefined) {
+            const inStock = productData.DATAPAYLOAD.split("<INSTOCKVALUE>")[1].split("</INSTOCKVALUE>")[0]
+            if(inStock === "INSTOCK") return "In stock"
+            else if(inStock === "OUTOFSTOCK") return "Out of stock"
+            else if(inStock === "LESSTHAN10") return "Less than 10"
+            else return "Corrupt data"
+        }
+    }
+    return "No data"
+}
 
 //Enables communication between the frontend and the backend
 app.use(cors())
@@ -17,56 +83,11 @@ app.use(cors())
 //Serve our frontend to clients
 app.use(express.static("build"))
 
-//Get the availability of a given product
-const getAvailability = (product) => {
-    return new Promise((resolve, reject) => {
-        dataService(manufacturers, product.manufacturer, availabilityURL)
-            .then(manufacturerData => {
-                const productData = manufacturerData.response.find(p => p.id === product.id.toUpperCase())
-                if(productData !== undefined) {
-                    const inStock = productData.DATAPAYLOAD.split("<INSTOCKVALUE>")[1].split("</INSTOCKVALUE>")[0]
-                    if(inStock === "INSTOCK") resolve("In stock")
-                    else if(inStock === "OUTOFSTOCK") resolve("Out of stock")
-                    else if(inStock === "LESSTHAN10") resolve("Less than 10")
-                    else resolve("Corrupt data")
-                } else {
-                    resolve("No data")
-                }
-            }).catch(reject)
-    })
-}
-
-//Handles data requests made by frontend
-const dataService = (cache, param, url) => {
-    if(param in cache && Date.now() - cache[param].timestamp < 300000) { //If the requested data is found in the cache and it is less than 5 minutes old, send it
-        console.log(`${param} found in cache`)
-        return Promise.resolve(cache[param].data)
-    } else {                                                            //Else fetch the data from the API, store it in the cache and send it
-        console.log(`Up-to-date data for ${param} not found in cache. Fetching new data...`)
-        const startTime = Date.now()
-        return new Promise((resolve, reject) => {
-            axios
-                .get(`${url}${param}`)
-                .then(response => {
-                    cache[param] = { data: response.data, timestamp: Date.now() }
-                    console.log(`Fetched data in ${Date.now() - startTime}ms`)
-                    resolve(response.data)
-                })
-        })
-    }
-}
-
+//Serve data of products
 app.get("/products/:category", async (req, res) => {
     try {
-        const data = await dataService(products, req.params.category, productsURL, res)
-        if(data.type !== "error") {
-            for(let product of data) {
-                product.availability = await getAvailability(product).catch(error => { throw error })
-            }
-            res.json(data)
-        } else {
-            res.json(data)
-        }
+        const data = await getDataFromCache(products, req.params.category, updateProductData)
+        res.json(data)
     } catch(error) {
         console.log(error)
         res.json(error)
