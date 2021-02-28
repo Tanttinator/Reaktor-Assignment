@@ -52,10 +52,28 @@ const updateProductData = async (param) => {
 
 //Update data of manufacturers
 const updateAvailabilityData = async (param) => {
+    var validData = false
+    var data = null
+    var tries = 0
     const startTime = Date.now();
     console.log(`Updating data for: ${param}...`)
-    const response = await axios.get(`${availabilityURL}${param}`)
-    const data = response.data
+
+    //If we get faulty data from the API, try again
+    while(!validData) {
+        tries++
+        const response = await axios.get(`${availabilityURL}${param}`)
+        data = response.data
+        validData = data.response !== "[]"
+        if(!validData) {
+            if(tries > 20) {
+                console.log(`Too many tries to update ${param}, interrupting`)
+                validData = true
+            } else {
+                console.log(`Faulty data received for ${param}, trying again... (tries: ${tries})`)
+            }
+        }
+    }
+
     availability.set(param, data)
     console.log(`Data updated for ${param} in ${Date.now() - startTime}ms`)
     return data
