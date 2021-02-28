@@ -37,6 +37,9 @@ const App = () => {
       }).catch(error => console.log(error.message))
   }, [category])
 
+  //Sort products alphabetically
+  products.sort((a, b) => a.name.localeCompare(b.name))
+
   //Build the webpage
   return (
     <div style={style}>
