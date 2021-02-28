@@ -20,6 +20,7 @@ const Product = ({product}) => {
             <ul>
                 {product.color.map(color => <li key={color}>{color}</li>)}
             </ul>
+            <p>Availability: {product.availability}</p>
         </span>
     )
 }
